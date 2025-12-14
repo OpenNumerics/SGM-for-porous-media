@@ -5,7 +5,7 @@ from thomas import solve_tridiagonal
 from typing import Callable, Dict, Tuple
 
 def solve_phi(x_cells : pt.Tensor, # size N
-              k_eff : Callable[[pt.Tensor], pt.Tensor],
+              k_eff_cells : pt.Tensor,
               phi_s : Callable[[pt.Tensor], pt.Tensor],
               F_right : float,
               U0 : float,
@@ -15,7 +15,6 @@ def solve_phi(x_cells : pt.Tensor, # size N
     N = len(x_cells)
 
     # Evaluate k_eff on the non-exterior faces.
-    k_eff_cells = k_eff(x_cells) # (N,)
     k_eff_interior_faces = 2.0 * k_eff_cells[0:-1] * k_eff_cells[1:] / (k_eff_cells[0:-1] + k_eff_cells[1:]) # (N-1,)
 
     # Start completing the big tridiagonal system
@@ -48,8 +47,8 @@ def compute_j(x_cells : pt.Tensor, # (N+1,)
     return k_rn * (phi_s(x_cells) - phi - U0)
 
 def step_c( x_cells: pt.Tensor,                      # (N+1,)
-            eps: Callable[[pt.Tensor], pt.Tensor],   # porosity ε(x) at cell centers
-            D_eff: Callable[[pt.Tensor], pt.Tensor], # effective diffusivity D_eff(x) at cell centers
+            eps_cells: pt.Tensor,   # porosity ε(x) at cell centers
+            D_eff_cells: pt.Tensor, # effective diffusivity D_eff(x) at cell centers
             c_n: pt.Tensor,                          # (N,) concentration at time n (cell centers)
             j_n: pt.Tensor,                          # (N,) reaction current at time n (cell centers)
             dt: float,
@@ -72,11 +71,8 @@ def step_c( x_cells: pt.Tensor,                      # (N+1,)
     dx = x_cells[1] - x_cells[0]
     N = x_cells.numel()
 
-    eps_cells = eps(x_cells)       # (N,)
-    D_cells = D_eff(x_cells)       # (N,)
-
     # harmonic averages to interior faces (N-1,)
-    D_faces = 2.0 * D_cells[:-1] * D_cells[1:] / (D_cells[:-1] + D_cells[1:])
+    D_faces = 2.0 * D_eff_cells[:-1] * D_eff_cells[1:] / (D_eff_cells[:-1] + D_eff_cells[1:])
 
     # Source term at time n (explicit)
     S_n = (1.0 - t_plus) / F * a_s * j_n  # (N,)
@@ -116,9 +112,9 @@ def step_c( x_cells: pt.Tensor,                      # (N+1,)
     c_np1 = solve_tridiagonal(lower, diag, upper, rhs)
     return c_np1
 
-def simulateFVM(eps : Callable[[pt.Tensor], pt.Tensor],
-                k_eff : Callable[[pt.Tensor], pt.Tensor],
-                D_eff : Callable[[pt.Tensor], pt.Tensor],
+def simulateFVM(eps_cells : pt.Tensor,
+                k_eff_cells : pt.Tensor,
+                D_eff_cells : pt.Tensor,
                 x_cells : pt.Tensor,
                 c0 : pt.Tensor,
                 T : float,
@@ -132,8 +128,8 @@ def simulateFVM(eps : Callable[[pt.Tensor], pt.Tensor],
     n_steps = int(T / dt)
     for n in range(1, n_steps+1):
         print('t =', n*dt)
-        phi = solve_phi(x_cells, k_eff, phi_s, F_right, parameters["U0"], parameters["k_rn"], parameters["a_s"])
+        phi = solve_phi(x_cells, k_eff_cells, phi_s, F_right, parameters["U0"], parameters["k_rn"], parameters["a_s"])
         j = compute_j(x_cells, phi_s, phi, parameters["U0"], parameters["k_rn"])
-        c = step_c(x_cells, eps, D_eff, c, j, dt, c_right, parameters["a_s"], parameters["t_plus"])
+        c = step_c(x_cells, eps_cells, D_eff_cells, c, j, dt, c_right, parameters["a_s"], parameters["t_plus"])
 
     return c, phi
