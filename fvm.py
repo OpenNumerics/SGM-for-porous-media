@@ -2,17 +2,16 @@ import torch as pt
 
 from thomas import solve_tridiagonal
 
-from typing import Callable
+from typing import Callable, Dict, Tuple
 
-def solve_phi(x_faces : pt.Tensor, # size N+1
+def solve_phi(x_cells : pt.Tensor, # size N
               k_eff : Callable[[pt.Tensor], pt.Tensor],
               phi_s : Callable[[pt.Tensor], pt.Tensor],
               F_right : float,
               U0 : float,
               k_rn : float,
               a_s: float) -> pt.Tensor:
-    dx = x_faces[1] - x_faces[0]
-    x_cells = 0.5*(x_faces[0:-1] + x_faces[1:]) # (N,)
+    dx = x_cells[1] - x_cells[0]
     N = len(x_cells)
 
     # Evaluate k_eff on the non-exterior faces.
@@ -20,19 +19,16 @@ def solve_phi(x_faces : pt.Tensor, # size N+1
     k_eff_interior_faces = 2.0 * k_eff_cells[0:-1] * k_eff_cells[1:] / (k_eff_cells[0:-1] + k_eff_cells[1:]) # (N-1,)
 
     # Start completing the big tridiagonal system
-    diagonal = pt.zeros((N,), device=x_faces.device)
+    diagonal = pt.zeros((N,), device=x_cells.device)
     diagonal[1:-1] = -(k_eff_interior_faces[0:-1] + k_eff_interior_faces[1:]) - a_s * k_rn * dx**2
     diagonal[0]  = -k_eff_interior_faces[0]  - a_s * k_rn * dx**2
     diagonal[-1] = -k_eff_interior_faces[-1] - a_s * k_rn * dx**2
 
-    lower = pt.zeros((N-1,), device=x_faces.device)
+    lower = pt.zeros((N-1,), device=x_cells.device)
     lower[:] = k_eff_interior_faces[:]
 
-    upper = pt.zeros((N-1,), device=x_faces.device)
+    upper = pt.zeros((N-1,), device=x_cells.device)
     upper[:] = k_eff_interior_faces[:]
-
-    # Assemble to full tridiagonal matrix
-    A = pt.diag(diagonal, 0) + pt.diag(upper, 1) + pt.diag(lower, -1)
 
     # Build the right-hand side
     b = -a_s * k_rn * (phi_s(x_cells) - U0) * dx**2
@@ -44,15 +40,14 @@ def solve_phi(x_faces : pt.Tensor, # size N+1
     # Normalize phi by subtracting phi(x=0)
     return phi - phi[0]
 
-def compute_j(x_faces : pt.Tensor, # (N+1,)
+def compute_j(x_cells : pt.Tensor, # (N+1,)
               phi_s : Callable[[pt.Tensor], pt.Tensor],
               phi : pt.Tensor,
               U0 : float,
               k_rn : float) -> pt.Tensor:
-    x_cells = 0.5*(x_faces[0:-1] + x_faces[1:]) # (N,)
     return k_rn * (phi_s(x_cells) - phi - U0)
 
-def step_c( x_faces: pt.Tensor,                      # (N+1,)
+def step_c( x_cells: pt.Tensor,                      # (N+1,)
             eps: Callable[[pt.Tensor], pt.Tensor],   # porosity ε(x) at cell centers
             D_eff: Callable[[pt.Tensor], pt.Tensor], # effective diffusivity D_eff(x) at cell centers
             c_n: pt.Tensor,                          # (N,) concentration at time n (cell centers)
@@ -74,8 +69,7 @@ def step_c( x_faces: pt.Tensor,                      # (N+1,)
 
     Returns c_{n+1} (N,).
     """
-    dx = x_faces[1] - x_faces[0]
-    x_cells = 0.5 * (x_faces[:-1] + x_faces[1:])  # (N,)
+    dx = x_cells[1] - x_cells[0]
     N = x_cells.numel()
 
     eps_cells = eps(x_cells)       # (N,)
@@ -93,9 +87,9 @@ def step_c( x_faces: pt.Tensor,                      # (N+1,)
     #  -D_{i+1/2}/dx^2 * c_{i+1}^{n+1}
     # = eps_i/dt * c_i^n + S_i^n
 
-    lower = pt.zeros((N - 1,), device=x_faces.device)
-    upper = pt.zeros((N - 1,), device=x_faces.device)
-    diag  = pt.zeros((N,),     device=x_faces.device)
+    lower = pt.zeros((N - 1,), device=x_cells.device)
+    upper = pt.zeros((N - 1,), device=x_cells.device)
+    diag  = pt.zeros((N,),     device=x_cells.device)
     rhs   = (eps_cells / dt) * c_n + S_n
 
     inv_dx2 = 1.0 / (dx * dx)
@@ -115,9 +109,31 @@ def step_c( x_faces: pt.Tensor,                      # (N+1,)
 
     # Right boundary i=N-1: Dirichlet c_{N-1}^{n+1} = c_right
     diag[-1] = 1.0
-    rhs[-1] = pt.as_tensor(c_right, device=x_faces.device)
+    rhs[-1] = pt.as_tensor(c_right, device=x_cells.device)
     lower[-1] = 0.0  # decouple from c_{N-2}
 
     # Solve tri-diagonal system
     c_np1 = solve_tridiagonal(lower, diag, upper, rhs)
     return c_np1
+
+def simulateFVM(eps : Callable[[pt.Tensor], pt.Tensor],
+                k_eff : Callable[[pt.Tensor], pt.Tensor],
+                D_eff : Callable[[pt.Tensor], pt.Tensor],
+                x_cells : pt.Tensor,
+                c0 : pt.Tensor,
+                T : float,
+                dt : float,
+                parameters : Dict,
+                phi_s : Callable[[pt.Tensor], pt.Tensor],
+                c_right : float,
+                F_right : float) -> Tuple[pt.Tensor, pt.Tensor]:
+    c = pt.clone(c0)
+    
+    n_steps = int(T / dt)
+    for n in range(1, n_steps+1):
+        print('t =', n*dt)
+        phi = solve_phi(x_cells, k_eff, phi_s, F_right, parameters["U0"], parameters["k_rn"], parameters["a_s"])
+        j = compute_j(x_cells, phi_s, phi, parameters["U0"], parameters["k_rn"])
+        c = step_c(x_cells, eps, D_eff, c, j, dt, c_right, parameters["a_s"], parameters["t_plus"])
+
+    return c, phi
