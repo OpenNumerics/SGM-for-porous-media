@@ -10,7 +10,7 @@ def solve_phi(x_cells : pt.Tensor, # size N
               F_right : float,
               U0 : float,
               k_rn : float,
-              a_s: float) -> pt.Tensor:
+              a_s: pt.Tensor) -> pt.Tensor:
     dx = x_cells[1] - x_cells[0]
     N = len(x_cells)
 
@@ -19,9 +19,9 @@ def solve_phi(x_cells : pt.Tensor, # size N
 
     # Start completing the big tridiagonal system
     diagonal = pt.zeros((N,), device=x_cells.device)
-    diagonal[1:-1] = -(k_eff_interior_faces[0:-1] + k_eff_interior_faces[1:]) - a_s * k_rn * dx**2
-    diagonal[0]  = -k_eff_interior_faces[0]  - a_s * k_rn * dx**2
-    diagonal[-1] = -k_eff_interior_faces[-1] - a_s * k_rn * dx**2
+    diagonal[1:-1] = -(k_eff_interior_faces[0:-1] + k_eff_interior_faces[1:]) - a_s[1:-1] * k_rn * dx**2
+    diagonal[0]  = -k_eff_interior_faces[0]  - a_s[0] * k_rn * dx**2
+    diagonal[-1] = -k_eff_interior_faces[-1] - a_s[-1] * k_rn * dx**2
 
     lower = pt.zeros((N-1,), device=x_cells.device)
     lower[:] = k_eff_interior_faces[:]
@@ -53,7 +53,7 @@ def step_c( x_cells: pt.Tensor,                      # (N+1,)
             j_n: pt.Tensor,                          # (N,) reaction current at time n (cell centers)
             dt: float,
             c_right: float,                          # Dirichlet BC at x=L: c(L)=c_right
-            a_s: float,
+            a_s: pt.Tensor,
             t_plus: float,
             F: float = 96485.33212,                  # Faraday constant (C/mol)
 ) -> pt.Tensor:
@@ -124,12 +124,13 @@ def simulateFVM(eps_cells : pt.Tensor,
                 c_right : float,
                 F_right : float) -> Tuple[pt.Tensor, pt.Tensor]:
     c = pt.clone(c0)
+    a_s = parameters["a_s"] * (1.0 - eps_cells)
     
     n_steps = int(T / dt)
     for n in range(1, n_steps+1):
         print('t =', n*dt)
-        phi = solve_phi(x_cells, k_eff_cells, phi_s, F_right, parameters["U0"], parameters["k_rn"], parameters["a_s"])
+        phi = solve_phi(x_cells, k_eff_cells, phi_s, F_right, parameters["U0"], parameters["k_rn"], a_s)
         j = compute_j(x_cells, phi_s, phi, parameters["U0"], parameters["k_rn"])
-        c = step_c(x_cells, eps_cells, D_eff_cells, c, j, dt, c_right, parameters["a_s"], parameters["t_plus"])
+        c = step_c(x_cells, eps_cells, D_eff_cells, c, j, dt, c_right, a_s, parameters["t_plus"])
 
     return c, phi
