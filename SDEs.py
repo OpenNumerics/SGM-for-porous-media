@@ -6,6 +6,8 @@ beta_min = 0.001
 beta_max = 3.0
 beta = lambda t: beta_min + t * (beta_max - beta_min)
 alpha = lambda t: beta_min * t + 0.5 * (beta_max - beta_min) * t**2
+mean_factor_tensor = lambda t: pt.exp(-0.5 * alpha(t))
+var_tensor = lambda t: 1 - pt.exp(-alpha(t))
 
 def forwardSDE(X : pt.Tensor, dt : float) -> pt.Tensor:
     n_steps = int(1.0 / dt)
@@ -62,16 +64,22 @@ def backwardSDE(initial_samples : pt.Tensor,
 
     return Y
 
-if __name__ == '__main__':
+def sampleInitial(N : int) -> pt.Tensor:
     # Generate circular samples as a test case
     n_points = 8
     angles = 2.0 * math.pi * pt.arange(0, n_points) / n_points
     points = pt.stack((pt.cos(angles), pt.sin(angles)), dim=1)
 
     # Sample X0 uniformly from these 8 points
-    N = 10_000
     indices = pt.randint(0, n_points, (N,))
     X_0 = points[indices,:]
+    
+    return X_0
+
+if __name__ == '__main__':
+    # Generate circular samples as a test case
+    N = 10_000
+    X_0 = sampleInitial(N)
     
     # Forward simulation
     print('Simulating the Forward SDE')
