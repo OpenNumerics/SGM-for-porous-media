@@ -28,7 +28,7 @@ def testFVM():
 
     a_s = 5e5
     k_rn = 0.1
-    U0 = 0.0
+    U0 = 1.0
     G = 1.e3
     phi_s = lambda x: -G*x
 
