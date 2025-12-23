@@ -24,12 +24,12 @@ def loss_fn():
     x0 = sampleInitial(B)
 
     mt = mean_factor_tensor(t)[:,None]
-    vt = var_tensor(t)[:,None].clip(1.e-4)
+    vt = var_tensor(t)[:,None].clamp_min(1.e-4)
     stds = pt.sqrt(vt)
 
     noise = pt.randn_like(x0)
     xt = x0 * mt + noise * stds
-    input = pt.cat((t[:,None], xt), dim=1)
+    input = pt.cat((xt, t[:,None]), dim=1)
 
     ref_output = -(xt - x0 * mt) / vt
 
