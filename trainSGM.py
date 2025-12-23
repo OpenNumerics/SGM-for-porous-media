@@ -1,3 +1,4 @@
+import math
 import torch as pt
 import torch.optim as optim
 import matplotlib.pyplot as plt
@@ -8,11 +9,18 @@ from SGMNetwork import Score
 pt.set_default_dtype(pt.float32)
 pt.set_default_device("mps")
 
-layers = [3, 128, 128, 128, 128, 2]
+n_embeddings = 8
+layers = [2 + 2*n_embeddings, 128, 128, 128, 128, 2]
 score_model = Score(layers)
 
 lr = 1e-4
 optimizer = optim.Adam(score_model.parameters(), lr=lr)
+
+def time_embedding(t):
+    freqs = 2 * math.pi * (2 ** pt.arange(n_embeddings))
+    t = t[:, None]
+    emb = pt.cat([pt.sin(freqs * t), pt.cos(freqs * t)], dim=1)
+    return emb
 
 B = 4096
 def loss_fn():
@@ -21,6 +29,7 @@ def loss_fn():
     """
     
     t = pt.rand((B,), device=pt.get_default_device())
+    embed_t = time_embedding(t)
     x0 = sampleInitial(B)
 
     mt = mean_factor_tensor(t)[:,None]
@@ -29,7 +38,7 @@ def loss_fn():
 
     noise = pt.randn_like(x0)
     xt = x0 * mt + noise * stds
-    input = pt.cat((xt, t[:,None]), dim=1)
+    input = pt.cat((xt, embed_t), dim=1)
 
     ref_output = -(xt - x0 * mt) / vt
 
@@ -61,7 +70,10 @@ for epoch in range(n_epochs):
     if epoch % 100 == 0:
         print('Train Epoch: {} \tLoss: {:.6f} \t Gradient Norm {:.6f}'.format(
             epoch, loss.item(), grad_norm))
-    
+
+# Save the network weights on file    
+pt.save(score_model.state_dict(), "./models/score_model_embedded.pth")
+
 # Plot the loss and grad norm
 epoch_list = pt.arange(1, n_epochs+1)
 plt.semilogy(epoch_list.cpu().numpy(), losses, label='Losses', alpha=0.5)
