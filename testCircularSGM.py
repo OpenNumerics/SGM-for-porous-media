@@ -7,6 +7,7 @@ from SGMNetwork import Score
 
 pt.set_default_dtype(pt.float32)
 pt.set_default_device("cpu")
+pt.set_grad_enabled(False)
 
 # Load the model from file
 test_embedded = True
@@ -51,7 +52,7 @@ def backwardSDE(Y : pt.Tensor,
 
 # Run the backward simulation, starting with random noise
 N = 10_000
-Y0 = pt.randn((N, 2))
+Y0 = pt.randn((N, 2), requires_grad=False)
 dt = 1e-4
 Y_1 = backwardSDE(Y0, dt)
 

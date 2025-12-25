@@ -122,13 +122,14 @@ def simulateFVM(eps_cells : pt.Tensor,
                 parameters : Dict,
                 phi_s : Callable[[pt.Tensor], pt.Tensor],
                 c_right : float,
-                F_right : float) -> Tuple[pt.Tensor, pt.Tensor]:
+                F_right : float,
+                verbose=False) -> Tuple[pt.Tensor, pt.Tensor]:
     c = pt.clone(c0)
     a_s = parameters["a_s"] * (1.0 - eps_cells)
     
     n_steps = int(T / dt)
     for n in range(1, n_steps+1):
-        print('t =', n*dt)
+        #print('t =', n*dt)
         phi = solve_phi(x_cells, k_eff_cells, phi_s, F_right, parameters["U0"], parameters["k_rn"], a_s)
         j = compute_j(x_cells, phi_s, phi, parameters["U0"], parameters["k_rn"])
         c = step_c(x_cells, eps_cells, D_eff_cells, c, j, dt, c_right, a_s, parameters["t_plus"])

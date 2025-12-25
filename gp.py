@@ -9,7 +9,6 @@ def covariance_1d(x : pt.Tensor,
 def sample_gp_1d(x : pt.Tensor,
                  l, mu, sigma) -> pt.Tensor:
     K = covariance_1d(x, l, sigma)
-    print('Eigenvalus', pt.linalg.eig(K))
     L = pt.linalg.cholesky(K)
 
     eps = pt.randn(x.shape)
