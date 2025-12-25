@@ -28,7 +28,7 @@ t_plus = 0.4
 dt = 0.1
 T = 100.0
 
-# Sample l log-normally, U0 uniformly and F_right also uniformly
+# Sample l log-uniformly, U0 uniformly and F_right also uniformly
 N_samples = 10_000
 class LogUniform(dist.TransformedDistribution):
     def __init__(self, lb, ub):
@@ -64,7 +64,7 @@ for n in range(N_samples):
     phi_data[n,:] = phi_T
 
 # Store the data
-parameters = pt.cat((l_values, U0_values, F_right_values), dim=1)
+parameters = pt.cat((l_values[:,None], U0_values[:,None], F_right_values[:,None]), dim=1)
 pt.save(parameters, './data/parameters.pt')
 pt.save(c_data, './data/c_data.pt')
 pt.save(phi_data, './data/phi_data.pt')
