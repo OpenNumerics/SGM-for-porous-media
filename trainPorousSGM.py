@@ -4,21 +4,21 @@ from torch.utils.data import Dataset, DataLoader
 import torch.optim as optim
 import matplotlib.pyplot as plt
 
-from SDEs import sampleInitial, mean_factor_tensor, var_tensor
+from SDEs import mean_factor_tensor, var_tensor
 from SGMNetwork import Score
 
 from typing import Tuple
 
-pt.set_default_dtype(pt.float32)
-pt.set_default_device("mps")
-
 # Dataset class
 class PorousDataset (Dataset):
-    def __init__(self):
+    def __init__(self, device, dtype):
         super().__init__()
-        parameters = pt.load('./data/parameters.pt', map_location=pt.device("mps")).to(dtype=pt.float32)
-        c_data = pt.load('./data/c_data.pt', map_location=pt.device("mps")).to(dtype=pt.float32)
-        phi_data = pt.load('./data/phi_data.pt', map_location=pt.device("mps")).to(dtype=pt.float32)
+        mask = pt.load('./data/gp_success.pt', map_location=device).to(dtype=pt.bool)
+        print('Number of Good Data Points:', pt.sum(mask).item())
+
+        parameters = pt.load('./data/parameters.pt', map_location=device)[mask,:].to(dtype=dtype)
+        c_data = pt.load('./data/c_data.pt', map_location=device)[mask,:].to(dtype=dtype)
+        phi_data = pt.load('./data/phi_data.pt', map_location=device)[mask,:].to(dtype=dtype)
         self.N_samples = int(parameters.shape[0])
 
         # Normalize the input data
@@ -47,15 +47,19 @@ class PorousDataset (Dataset):
     def __getitem__(self, index) -> Tuple[pt.Tensor, pt.Tensor]:
         return pt.cat((self.norm_c_data[index,:], self.norm_phi_data[index,:])), pt.stack((self.log_l_values[index], self.U0_values[index], self.F_right_values[index]))
 
+# Set global device and dtype, except for the dataloader
+dtype = pt.float32
+device = pt.device("mps")
+
 # Load the full dataset
-B = 4096
-dataset = PorousDataset()
+B = 512
+dataset = PorousDataset(pt.device("cpu"), dtype)
 loader = DataLoader(dataset, B, shuffle=True)
 
 n_grid = 100
 n_embeddings = 16
-layers = [2 + 2*n_embeddings + 3, 256, 256, 256, 256, 2*n_grid]
-score_model = Score(layers)
+layers = [2*n_grid + 2*n_embeddings + 3, 256, 256, 256, 256, 2*n_grid]
+score_model = Score(layers).to(device=device)
 
 lr = 1e-4
 optimizer = optim.Adam(score_model.parameters(), lr=lr)
@@ -72,11 +76,14 @@ def loss_fn(x0: pt.Tensor,          # (B, 2*n_grid)
     """
     Evaluate the score-based loss function based on random samples.
     """
+    x0 = x0.to(device=device)
+    cond = cond.to(device=device)
+
     B_ = x0.shape[0]
     assert(x0.shape[0] == cond.shape[0])
 
     # Sample t uniformly
-    t = pt.rand((B_,), device=pt.get_default_device())
+    t = pt.rand((B_,), device=device, dtype=dtype)
     embed_t = time_embedding(t) # Shape (B, 2*n_freq)
 
     # Forward diffusion
@@ -88,7 +95,9 @@ def loss_fn(x0: pt.Tensor,          # (B, 2*n_grid)
 
     # Propage the noise through the network
     input = pt.cat((xt, embed_t, cond), dim=1)
+    print(pt.any(pt.isnan(input)))
     output = score_model(input)
+    print(pt.any(pt.isnan(output)))
 
     # Compute the loss
     ref_output = -(xt - x0 * mt) / vt
@@ -112,6 +121,7 @@ grad_norms = []
 score_model.train()
 for epoch in range(n_epochs):
     for batch_idx, (x0, cond) in enumerate(loader):
+        print('NaN in Data', pt.any(pt.isnan(x0)), pt.any(pt.isnan(cond)))
         optimizer.zero_grad()
 
         loss = loss_fn(x0, cond)
