@@ -1,4 +1,3 @@
-import math
 import torch as pt
 from torch.utils.data import DataLoader
 import torch.optim as optim
@@ -7,7 +6,6 @@ import matplotlib.pyplot as plt
 from PorousSGMDataset import PorousDataset
 from SDEs import mean_factor_tensor, var_tensor
 from ConvFiLMScore import ConvFiLMScore1D
-from typing import Tuple
 
 # Set global device and dtype, except for the dataloader
 dtype = pt.float32
@@ -63,7 +61,7 @@ def getGradientNorm():
     grads = pt.cat(grads)
     return pt.norm(grads).item()
 
-n_epochs = 25_000
+n_epochs = 10_000
 counter = []
 losses = []
 grad_norms = []
