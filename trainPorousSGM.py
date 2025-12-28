@@ -33,6 +33,9 @@ def time_embedding(t : pt.Tensor):
     emb = pt.cat([pt.sin(freqs * t), pt.cos(freqs * t)], dim=1)
     return emb
 
+lam = 1e-3
+def lap1d(u):  # u: (B, D) with D=2*n_grid
+    return u[:, 2:] - 2*u[:, 1:-1] + u[:, :-2]
 def loss_fn(x0: pt.Tensor,          # (B, 2*n_grid)
             cond: pt.Tensor,        # (B, 3)
             ) -> pt.Tensor:
@@ -58,15 +61,19 @@ def loss_fn(x0: pt.Tensor,          # (B, 2*n_grid)
 
     # Propage the noise through the network
     input = pt.cat((xt, embed_t, cond), dim=1)
-    print(pt.any(pt.isnan(input)))
     output = score_model(input)
-    print(pt.any(pt.isnan(output)))
 
     # Compute the loss
     ref_output = -(xt - x0 * mt) / vt
     loss = pt.mean(vt * (output - ref_output)**2)
+
+    # Regularize the output to improve smoothness
+    x0_hat = (xt + vt * output) / mt          # mt, vt: (B,1)
+    c_hat  = x0_hat[:, :n_grid]
+    phi_hat = x0_hat[:, n_grid:]
+    smooth = (lap1d(c_hat).pow(2).mean() + lap1d(phi_hat).pow(2).mean())
     
-    return loss
+    return loss + smooth
 
 def getGradientNorm():
     grads = []
@@ -76,7 +83,7 @@ def getGradientNorm():
     grads = pt.cat(grads)
     return pt.norm(grads).item()
 
-n_epochs = 10_000
+n_epochs = 50_000
 counter = []
 losses = []
 grad_norms = []
@@ -84,7 +91,6 @@ grad_norms = []
 score_model.train()
 for epoch in range(n_epochs):
     for batch_idx, (x0, cond) in enumerate(loader):
-        print('NaN in Data', pt.any(pt.isnan(x0)), pt.any(pt.isnan(cond)))
         optimizer.zero_grad()
 
         loss = loss_fn(x0, cond)

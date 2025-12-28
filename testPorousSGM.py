@@ -22,6 +22,7 @@ n_embeddings = 16
 layers = [2*n_grid + 2*n_embeddings + 3, 256, 256, 256, 256, 2*n_grid]
 score_model = Score(layers)
 score_model.load_state_dict(pt.load("./models/porous_score_model_embedded.pth", weights_only=True))
+score_model.eval()
 
 # Backward simulation of the SDE
 @pt.no_grad()
@@ -31,7 +32,6 @@ def sample_sgm(cond_norm, dt):
     y = pt.randn((B, 2*n_grid))  # N(0,I) in normalized space
 
     def time_embedding(t):
-        t = pt.clamp(t, min=1e-4)
         freqs = 2 * math.pi * (2 ** pt.arange(n_embeddings))
         t = t[:, None]
         return pt.cat([pt.sin(freqs * t), pt.cos(freqs * t)], dim=1)
@@ -40,6 +40,7 @@ def sample_sgm(cond_norm, dt):
     for n in range(n_steps):
         s = n * dt
         t = (1.0 - s) * pt.ones((B,))  # network expects "forward time" t
+        t = pt.clamp(t, min=1e-4)
         emb = time_embedding(t)
 
         inp = pt.cat([y, emb, cond_norm], dim=1)      # <-- y is already normalized
@@ -63,15 +64,17 @@ cond_norm = pt.tensor([[log_l_norm, U0_norm, F_right_norm]], dtype=pt.float32)  
 
 # Generate the SGM solution
 print('Backward SDE Simulation..')
-dt = 1e-5
+dt = 1e-3
 y = sample_sgm(cond_norm, dt)
+print(y.shape)
 c = dataset.mean_c + y[0,:n_grid] * dataset.std_c
 phi = dataset.mean_phi + y[0,n_grid:] * dataset.std_phi
+print(c)
+print(phi)
 
 # Solve the PDE by generating eps(x) randomly
 parameters, phi_s = getPDEParameters()
 parameters["U0"] = U0
-L = 1.e-4
 x_faces = pt.linspace(0.0, L, n_grid+1)
 x_cells = 0.5 * (x_faces[1:] + x_faces[0:-1])
 eps_min, eps_max = 0.2, 0.5
