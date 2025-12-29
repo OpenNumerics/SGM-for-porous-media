@@ -23,10 +23,17 @@ score_model = ConvFiLMScore1D(n_grid, n_time_freq=n_embeddings)
 score_model.load_state_dict(pt.load("./models/porous_score_model_convfilm.pth", weights_only=True))
 score_model.eval()
 
-# Backward simulation of the SDE
+# Useful model parameters for backward simulation
+L = 1e-4
+c0 = 1000.0
+x_faces = pt.linspace(0.0, L, n_grid+1)
+x_cells = 0.5 * (x_faces[1:] + x_faces[0:-1])
+c0_tensor = c0 * pt.ones_like(x_cells)
+c_right = c0
+
+# Backward simulation of the SDE in normalized space.
 @pt.no_grad()
 def sample_sgm(cond_norm, dt):
-    # Y is in NORMALIZED space
     B = cond_norm.shape[0]
     y = pt.randn((B, 2*n_grid))
 
@@ -34,19 +41,35 @@ def sample_sgm(cond_norm, dt):
     for n in range(n_steps):
         s = n * dt
         t = (1.0 - s) * pt.ones((B,))  # network expects "forward time" t
-        t = pt.clamp(t, min=1e-4)
+        #t = pt.clamp(t, min=1e-4)
 
         # Compute the score
         score = score_model(y, t, cond_norm)
 
         # Do one backward EM step
         beta_t = beta(t)[:, None]
-        y = y + dt*(0.5*beta_t*y + beta_t*score) #+ pt.sqrt(beta_t*dt)*pt.randn_like(y)
+        y = y + dt*(0.5*beta_t*y + beta_t*score) + pt.sqrt(beta_t*dt)*pt.randn_like(y)
+
+        # Enforce the gauge condition phi(x=0) = 0.
+        # Our variable y lives in normalized space, so we must unnormalize, then gauge, then re-normalize
+        phi_norm = y[:,n_grid:]
+        phi = dataset.mean_phi + phi_norm * dataset.std_phi
+        phi = phi - phi[:,0]
+        phi_norm = (phi - dataset.mean_phi) / dataset.std_phi
+        y[:,n_grid:] = phi_norm
+
+        # Enforce the Dirichlet boundary condition c(L) = c_right, 
+        # and the Neumann boundary condition c'(0) = 0.
+        c_norm = y[:,:n_grid]
+        c = dataset.mean_c + c_norm * dataset.std_c
+        c[:, 0] = (4.0*c[:, 1] - c[:, 2]) / 3.0
+        c[:,-1] = c_right
+        c_norm = (c - dataset.mean_c) / dataset.std_c
+        y[:,:n_grid] = c_norm
 
     return y
 
 # Sample a good initial (l, U0, F_right)
-L = 1e-4
 l = L / 10.0
 log_l = math.log(l)
 U0 = 0.0
@@ -73,9 +96,6 @@ eps_values = sample_gp_1d(x_cells, l, 0.0, 1.0)
 eps_values = eps_min + (eps_max - eps_min) * pt.sigmoid(eps_values)
 
 # Right bc for phi is the ionic current density i_c(L)
-c0 = 1000.0
-c0_tensor = c0 * pt.ones_like(x_cells)
-c_right = c0
 b = 1.5
 D0 = 3e-11
 kappa0 = 1.0

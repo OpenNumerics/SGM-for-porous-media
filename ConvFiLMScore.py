@@ -103,7 +103,7 @@ class ConvFiLMScore1D(nn.Module):
         n_cond: int = 3,
         n_time_freq: int = 16,
         base_channels: int = 64,
-        n_blocks: int = 6,
+        n_blocks: int = 10,
         kernel_size: int = 5,
         film_hidden: int = 128,
         film_layers: int = 2,

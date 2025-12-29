@@ -129,7 +129,8 @@ def simulateFVM(eps_cells : pt.Tensor,
     
     n_steps = int(T / dt)
     for n in range(1, n_steps+1):
-        #print('t =', n*dt)
+        if verbose:
+          print('t =', n*dt)
         phi = solve_phi(x_cells, k_eff_cells, phi_s, F_right, parameters["U0"], parameters["k_rn"], a_s)
         j = compute_j(x_cells, phi_s, phi, parameters["U0"], parameters["k_rn"])
         c = step_c(x_cells, eps_cells, D_eff_cells, c, j, dt, c_right, a_s, parameters["t_plus"])
