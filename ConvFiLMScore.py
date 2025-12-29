@@ -22,7 +22,7 @@ class TimeEmbedding(nn.Module):
 
 class FiLM(nn.Module):
     """
-    FiLM modulator: takes conditioning vector z (B, z_dim),
+    FiLM modulator: takes conditioning vector z (B, z_dim) of time embeddings and conditioning variables.
     outputs (gamma, beta) each of shape (B, C), to modulate Conv features (B, C, N).
     """
     def __init__(self, z_dim: int, # = 2 * n_freq + 3
@@ -121,6 +121,7 @@ class ConvFiLMScore1D(nn.Module):
         # FiLM modulators: either one per block or one shared
         film = FiLM(z_dim=z_dim, channels=base_channels, hidden=film_hidden, n_layers=film_layers)
 
+        # Make n_blocks (default 6) conv-film-conv-film blocks.
         self.blocks = nn.ModuleList([
             ConvBlockFiLM(channels=base_channels, kernel_size=kernel_size, film=film) for _ in range(n_blocks)
         ])

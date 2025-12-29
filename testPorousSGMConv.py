@@ -20,7 +20,7 @@ dataset = PorousDataset(pt.device("cpu"), pt.float32)
 n_grid = 100
 n_embeddings = 16
 score_model = ConvFiLMScore1D(n_grid, n_time_freq=n_embeddings)
-score_model.load_state_dict(pt.load("./models/porous_score_model_conv.pth", weights_only=True))
+score_model.load_state_dict(pt.load("./models/porous_score_model_convfilm.pth", weights_only=True))
 score_model.eval()
 
 # Backward simulation of the SDE
@@ -28,7 +28,7 @@ score_model.eval()
 def sample_sgm(cond_norm, dt):
     # Y is in NORMALIZED space
     B = cond_norm.shape[0]
-    y = pt.randn((B, 2*n_grid))  # N(0,I) in normalized space
+    y = pt.randn((B, 2*n_grid))
 
     n_steps = int(1.0 / dt)
     for n in range(n_steps):
@@ -37,13 +37,13 @@ def sample_sgm(cond_norm, dt):
         t = pt.clamp(t, min=1e-4)
 
         # Compute the score
-        score = score_model(y, t, cond_norm)   # score in normalized space
+        score = score_model(y, t, cond_norm)
 
         # Do one backward EM step
         beta_t = beta(t)[:, None]
-        y = y + dt*(0.5*beta_t*y + beta_t*score) + pt.sqrt(beta_t*dt)*pt.randn_like(y)
+        y = y + dt*(0.5*beta_t*y + beta_t*score) #+ pt.sqrt(beta_t*dt)*pt.randn_like(y)
 
-    return y  # still normalized
+    return y
 
 # Sample a good initial (l, U0, F_right)
 L = 1e-4
@@ -93,14 +93,14 @@ fig, ax1 = plt.subplots(figsize=(9,5))
 ax2 = ax1.twinx()
 
 # concentration (left axis)
-ax1.plot(x_cells, c_T,  label="PDE c(x)", linewidth=2)
-ax1.plot(x_cells, c,  "--", label="SGM c(x)", linewidth=2)
+ax1.plot(1e6 * x_cells, c_T,  label="PDE c(x)", color="red", linewidth=2)
+ax1.plot(1e6 * x_cells, c,  "--", label="SGM c(x)", color="red", linewidth=2)
 ax1.set_xlabel("x [μm]")
 ax1.set_ylabel("Concentration c [mol/m³]")
 
 # potential (right axis)
-ax2.plot(x_cells, phi_T, label="PDE φ(x)", linewidth=2)
-ax2.plot(x_cells, phi, "--", label="SGM φ(x)", linewidth=2)
+ax2.plot(1e6 * x_cells, phi_T, label="PDE φ(x)", color="blue", linewidth=2)
+ax2.plot(1e6 * x_cells, phi, "--", label="SGM φ(x)", color="blue", linewidth=2)
 ax2.set_ylabel("Electrolyte potential φ [V]")
 
 # single combined legend

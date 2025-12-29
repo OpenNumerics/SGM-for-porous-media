@@ -20,6 +20,8 @@ loader = DataLoader(dataset, B, shuffle=True)
 n_grid = 100
 n_embeddings = 16
 score_model = ConvFiLMScore1D(n_grid, n_time_freq=n_embeddings).to(device=device)
+n_params = sum(p.numel() for p in score_model.parameters() if p.requires_grad)
+print(f"Total trainable parameters: {n_params:,}")
 
 lr = 1e-4
 optimizer = optim.Adam(score_model.parameters(), lr=lr)
