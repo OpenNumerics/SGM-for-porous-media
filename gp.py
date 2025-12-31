@@ -7,10 +7,12 @@ def covariance_1d(x : pt.Tensor,
     return K
 
 def sample_gp_1d(x : pt.Tensor,
+                 n_fcns : int,
                  l, mu, sigma) -> pt.Tensor:
     K = covariance_1d(x, l, sigma)
     L = pt.linalg.cholesky(K)
 
-    eps = pt.randn(x.shape)
+    n_x = x.shape[0]
+    eps = pt.randn((n_x, n_fcns))
     samples = mu + L @ eps
     return samples

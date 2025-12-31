@@ -59,8 +59,8 @@ class ConvBlockFiLM(nn.Module):
         super().__init__()
         pad = kernel_size // 2
 
-        self.conv1 = nn.Conv1d(channels, channels, kernel_size, padding=pad, padding_mode='reflect')
-        self.conv2 = nn.Conv1d(channels, channels, kernel_size, padding=pad, padding_mode='reflect')
+        self.conv1 = nn.Conv1d(channels, channels, kernel_size, padding=pad, padding_mode='replicate')
+        self.conv2 = nn.Conv1d(channels, channels, kernel_size, padding=pad, padding_mode='replicate')
 
         self.act = nn.SiLU()
         self.film = film  # provided externally (shared or per-block)
@@ -106,7 +106,7 @@ class ConvFiLMScore1D(nn.Module):
         n_blocks: int = 10,
         kernel_size: int = 5,
         film_hidden: int = 128,
-        film_layers: int = 2,
+        film_layers: int = 4,
     ):
         super().__init__()
         self.n_grid = n_grid
