@@ -92,7 +92,7 @@ parameters["U0"] = U0
 x_faces = pt.linspace(0.0, L, n_grid+1)
 x_cells = 0.5 * (x_faces[1:] + x_faces[0:-1])
 eps_min, eps_max = 0.2, 0.5
-eps_values = sample_gp_1d(x_cells, l, 0.0, 1.0)
+eps_values = sample_gp_1d(x_cells, 1, l, 0.0, 1.0)
 eps_values = eps_min + (eps_max - eps_min) * pt.sigmoid(eps_values)
 
 # Right bc for phi is the ionic current density i_c(L)
