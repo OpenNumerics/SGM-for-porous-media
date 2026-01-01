@@ -10,11 +10,13 @@ from fvm import simulateFVM
 from gp import sample_gp_1d
 
 pt.set_grad_enabled(False)
-pt.set_default_device(pt.device("cpu"))
-pt.set_default_dtype(pt.float32)
+device = pt.device("cpu")
+dtype = pt.float32
+pt.set_default_device(device)
+pt.set_default_dtype(dtype)
 
 # Load the dataset for normalization
-dataset = PorousDataset(pt.device("cpu"), pt.float32)
+dataset = PorousDataset(device, dtype)
 
 # Load the model
 n_grid = 100
@@ -41,7 +43,7 @@ def sample_sgm(cond_norm, dt):
     for n in range(n_steps):
         s = n * dt
         t = (1.0 - s) * pt.ones((B,))  # network expects "forward time" t
-        #t = pt.clamp(t, min=1e-4)
+        t = pt.clamp(t, min=1e-4)
 
         # Compute the score
         score = score_model(y, t, cond_norm)
@@ -93,7 +95,7 @@ x_faces = pt.linspace(0.0, L, n_grid+1)
 x_cells = 0.5 * (x_faces[1:] + x_faces[0:-1])
 eps_min, eps_max = 0.2, 0.5
 eps_values = sample_gp_1d(x_cells, 1, l, 0.0, 1.0)
-eps_values = eps_min + (eps_max - eps_min) * pt.sigmoid(eps_values)
+eps_values = eps_min + (eps_max - eps_min) * pt.sigmoid(eps_values[:,0])
 
 # Right bc for phi is the ionic current density i_c(L)
 b = 1.5
