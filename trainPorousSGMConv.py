@@ -13,8 +13,10 @@ device = pt.device("mps")
 
 # Load the full dataset
 B = 512
-dataset = PorousDataset(pt.device("cpu"), dtype)
-loader = DataLoader(dataset, B, shuffle=True)
+train_dataset = PorousDataset(pt.device("cpu"), dtype)
+train_loader = DataLoader(train_dataset, B, shuffle=True)
+test_dataset = PorousDataset(pt.device("cpu"), dtype, is_test=True)
+test_loader = DataLoader(test_dataset, len(test_dataset))
 
 # Build the complicated FiLM Scoring Network
 n_grid = 100
@@ -67,10 +69,12 @@ n_epochs = 10_000
 counter = []
 losses = []
 grad_norms = []
+test_losses = []
 
-score_model.train()
+best_loss = float("inf")
 for epoch in range(n_epochs):
-    for batch_idx, (x0, cond) in enumerate(loader):
+    score_model.train()
+    for batch_idx, (x0, cond) in enumerate(train_loader):
         optimizer.zero_grad()
 
         loss = loss_fn(x0, cond)
@@ -78,18 +82,30 @@ for epoch in range(n_epochs):
         grad_norm = getGradientNorm()
         optimizer.step()
 
-        counter.append((1.0*batch_idx)/len(loader) + epoch)
+        counter.append((1.0*batch_idx)/len(train_loader) + epoch)
         losses.append(loss.item())
         grad_norms.append(grad_norm)
-
     print('Train Epoch: {} \tLoss: {:.6f} \t Gradient Norm {:.6f}'.format(  epoch, loss.item(), grad_norm ))
 
-# Save the network weights on file    
-pt.save(score_model.state_dict(), "./models/porous_score_model_convfilm.pth")
+    score_model.eval()
+    with pt.no_grad():
+        for batch_idx, (x0, cond) in enumerate(test_loader):
+            test_loss = loss_fn(x0, cond)
+            test_losses.append(test_loss.item())
+
+        if test_loss.item() < best_loss:
+            pt.save(score_model.state_dict(), "./models/porous_score_model_convfilm_best_validated.pth")
+            best_loss = test_loss.item()
+
+    print('Test Loss {:.6f}'.format( test_loss.item() ))
+
+# Save the final network weights on file    
+pt.save(score_model.state_dict(), "./models/porous_score_model_convfilm_validated.pth")
 
 # Plot the loss and grad norm
 plt.semilogy(counter, losses, label='Losses', alpha=0.5)
 plt.semilogy(counter, grad_norms, label='Gradient Norms', alpha=0.5)
+plt.semilogy(counter, test_losses, label='Test Losses', alpha=0.5)
 plt.xlabel('Epoch')
 plt.legend()
 plt.show()

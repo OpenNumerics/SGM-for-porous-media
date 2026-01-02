@@ -5,14 +5,19 @@ from typing import Tuple
 
 # Dataset class
 class PorousDataset (Dataset):
-    def __init__(self, device, dtype):
+    def __init__(self, device, dtype, is_test=False):
         super().__init__()
-        mask = pt.load('./data/gp_success_multieps.pt', map_location=device, weights_only=True).to(dtype=pt.bool)
+        if is_test:
+            app = '_test'
+        else:
+            app = ""
+
+        mask = pt.load('./data/gp_success_multieps' + app + '.pt', map_location=device, weights_only=True).to(dtype=pt.bool)
         print('Number of Good Data Points:', pt.sum(mask).item())
 
-        parameters = pt.load('./data/parameters_multieps.pt', map_location=device, weights_only=True)[mask,:].to(dtype=dtype)
-        c_data = pt.load('./data/c_data_multieps.pt', map_location=device, weights_only=True)[mask,:].to(dtype=dtype)
-        phi_data = pt.load('./data/phi_data_multieps.pt', map_location=device, weights_only=True)[mask,:].to(dtype=dtype)
+        parameters = pt.load('./data/parameters_multieps' + app + '.pt', map_location=device, weights_only=True)[mask,:].to(dtype=dtype)
+        c_data = pt.load('./data/c_data_multieps' + app + '.pt', map_location=device, weights_only=True)[mask,:].to(dtype=dtype)
+        phi_data = pt.load('./data/phi_data_multieps' + app + '.pt', map_location=device, weights_only=True)[mask,:].to(dtype=dtype)
         self.N_samples = int(parameters.shape[0])
 
         # Normalize the input data
