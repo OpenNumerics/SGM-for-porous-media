@@ -21,10 +21,21 @@ class PorousDataset (Dataset):
         self.N_samples = int(parameters.shape[0])
 
         # Normalize the input data
-        self.mean_c = pt.mean(c_data)
-        self.std_c = pt.std(c_data)
-        self.mean_phi = pt.mean(phi_data)
-        self.std_phi = pt.std(phi_data)
+        if is_test:
+            print('Loading normalization')
+            normalization = pt.load('./data/normalization.pt', weights_only=True)
+            self.mean_c = normalization[0]
+            self.std_c = normalization[1]
+            self.mean_phi = normalization[2]
+            self.std_phi = normalization[3]
+        else:
+            self.mean_c = pt.mean(c_data)
+            self.std_c = pt.std(c_data)
+            self.mean_phi = pt.mean(phi_data)
+            self.std_phi = pt.std(phi_data)
+
+            print('Storing normalization.')
+            pt.save(pt.Tensor([self.mean_c, self.std_c, self.mean_phi, self.std_phi]), './data/normalization.pt')
         self.norm_c_data = (c_data - self.mean_c) / self.std_c
         self.norm_phi_data = (phi_data - self.mean_phi) / self.std_phi
 
