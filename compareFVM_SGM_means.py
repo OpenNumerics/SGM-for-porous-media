@@ -94,27 +94,22 @@ D_eff = D0 * eps_values**b
 # Run the FVM simulator
 dt = 0.1
 T = 100.0
-c_sum = pt.zeros_like(x_cells)
-phi_sum = pt.zeros_like(x_cells)
+c_pde = pt.zeros(n_eps, pt.numel(x_cells))
+phi_pde = pt.zeros(n_eps, pt.numel(x_cells))
 for eps_idx in range(n_eps):
     print('eps_idx =', eps_idx)
     c_T, phi_T = simulateFVM(eps_values[:,eps_idx], k_eff[:,eps_idx], D_eff[:,eps_idx], x_cells, c0_tensor, 
                                 T, dt, parameters, phi_s, c_right, F_right)
-    c_sum += c_T
-    phi_sum += phi_T
+    c_pde[eps_idx,:] = c_T
+    phi_pde[eps_idx,:] = phi_T
 
 # Average and compare
-mean_c_pde = c_sum / n_eps
-mean_phi_pde = phi_sum / n_eps
+mean_c_pde = pt.mean(c_pde, dim=0)
+mean_phi_pde = pt.mean(phi_pde, dim=0)
 mean_c_sgm = pt.mean(c, dim=0)
 mean_phi_sgm = pt.mean(phi, dim=0)
-
-# Compute the 95% confidence interval.
-lower_ci_c = pt.quantile(c, 0.025, dim=0)
-upper_ci_c = pt.quantile(c, 0.975, dim=0)
-lower_ci_phi = pt.quantile(phi, 0.025, dim=0)
-upper_ci_phi = pt.quantile(phi, 0.975, dim=0)
-pt.save(pt.stack((mean_c_sgm, lower_ci_c, upper_ci_c, mean_phi_sgm, lower_ci_phi, upper_ci_phi), dim=0) , './models/quantiles.pt')
+pt.save(pt.stack((c_pde, phi_pde), dim=1) , './models/pde_realizations.pt')
+pt.save(pt.stack((c, phi), dim=1) , './models/sgm_realizations.pt')
 
 # Plot both on separate axis
 fig, ax1 = plt.subplots(figsize=(9,5))
