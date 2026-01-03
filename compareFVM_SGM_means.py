@@ -51,24 +51,7 @@ def sample_sgm(cond_norm, dt):
 
         # Do one backward EM step
         beta_t = beta(t)[:, None]
-        y = y + dt*(0.5*beta_t*y + beta_t*score) #+ pt.sqrt(beta_t*dt)*pt.randn_like(y)
-
-        # Enforce the gauge condition phi(x=0) = 0.
-        # Our variable y lives in normalized space, so we must unnormalize, then gauge, then re-normalize
-        # phi_norm = y[:,n_grid:]
-        # phi = dataset.mean_phi + phi_norm * dataset.std_phi
-        # phi = phi - phi[:,0:1]
-        # phi_norm = (phi - dataset.mean_phi) / dataset.std_phi
-        # y[:,n_grid:] = phi_norm
-
-        # # Enforce the Dirichlet boundary condition c(L) = c_right, 
-        # # and the Neumann boundary condition c'(0) = 0.
-        # c_norm = y[:,:n_grid]
-        # c = dataset.mean_c + c_norm * dataset.std_c
-        # c[:, 0] = (4.0*c[:, 1] - c[:, 2]) / 3.0
-        # c[:,-1] = c_right
-        # c_norm = (c - dataset.mean_c) / dataset.std_c
-        # y[:,:n_grid] = c_norm
+        y = y + dt*(0.5*beta_t*y + beta_t*score) + pt.sqrt(beta_t*dt)*pt.randn_like(y)
 
     return y
 
@@ -120,11 +103,18 @@ for eps_idx in range(n_eps):
     c_sum += c_T
     phi_sum += phi_T
 
-# Aerage and compare
+# Average and compare
 mean_c_pde = c_sum / n_eps
 mean_phi_pde = phi_sum / n_eps
 mean_c_sgm = pt.mean(c, dim=0)
 mean_phi_sgm = pt.mean(phi, dim=0)
+
+# Compute the 95% confidence interval.
+lower_ci_c = pt.quantile(c, 0.025, dim=0)
+upper_ci_c = pt.quantile(c, 0.975, dim=0)
+lower_ci_phi = pt.quantile(phi, 0.025, dim=0)
+upper_ci_phi = pt.quantile(phi, 0.975, dim=0)
+pt.save(pt.stack((mean_c_sgm, lower_ci_c, upper_ci_c, mean_phi_sgm, lower_ci_phi, upper_ci_phi), dim=0) , './models/quantiles.pt')
 
 # Plot both on separate axis
 fig, ax1 = plt.subplots(figsize=(9,5))
