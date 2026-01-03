@@ -22,7 +22,7 @@ dataset = PorousDataset(device, dtype)
 n_grid = 100
 n_embeddings = 16
 score_model = ConvFiLMScore1D(n_grid, n_time_freq=n_embeddings)
-score_model.load_state_dict(pt.load("./models/porous_score_model_convfilm.pth", weights_only=True))
+score_model.load_state_dict(pt.load("./models/porous_score_model_convfilm_best_validated.pth", weights_only=True))
 score_model.eval()
 
 # Useful model parameters for backward simulation
@@ -54,20 +54,20 @@ def sample_sgm(cond_norm, dt):
 
         # Enforce the gauge condition phi(x=0) = 0.
         # Our variable y lives in normalized space, so we must unnormalize, then gauge, then re-normalize
-        phi_norm = y[:,n_grid:]
-        phi = dataset.mean_phi + phi_norm * dataset.std_phi
-        phi = phi - phi[:,0]
-        phi_norm = (phi - dataset.mean_phi) / dataset.std_phi
-        y[:,n_grid:] = phi_norm
+        # phi_norm = y[:,n_grid:]
+        # phi = dataset.mean_phi + phi_norm * dataset.std_phi
+        # phi = phi - phi[:,0]
+        # phi_norm = (phi - dataset.mean_phi) / dataset.std_phi
+        # y[:,n_grid:] = phi_norm
 
-        # Enforce the Dirichlet boundary condition c(L) = c_right, 
-        # and the Neumann boundary condition c'(0) = 0.
-        c_norm = y[:,:n_grid]
-        c = dataset.mean_c + c_norm * dataset.std_c
-        c[:, 0] = (4.0*c[:, 1] - c[:, 2]) / 3.0
-        c[:,-1] = c_right
-        c_norm = (c - dataset.mean_c) / dataset.std_c
-        y[:,:n_grid] = c_norm
+        # # Enforce the Dirichlet boundary condition c(L) = c_right, 
+        # # and the Neumann boundary condition c'(0) = 0.
+        # c_norm = y[:,:n_grid]
+        # c = dataset.mean_c + c_norm * dataset.std_c
+        # c[:, 0] = (4.0*c[:, 1] - c[:, 2]) / 3.0
+        # c[:,-1] = c_right
+        # c_norm = (c - dataset.mean_c) / dataset.std_c
+        # y[:,:n_grid] = c_norm
 
     return y
 
