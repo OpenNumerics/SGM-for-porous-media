@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 sgm = pt.load('./models/sgm_realizations.pt', weights_only=True)
 pde = pt.load('./models/pde_realizations.pt', weights_only=True)
 n_grid = sgm.shape[2]
-print(n_grid, sgm.shape, pde.shape)
 
 # Compute the average function
 c_sgm = sgm[:,0,:]
@@ -18,7 +17,6 @@ mean_c_sgm = pt.mean(c_sgm, dim=0)
 mean_phi_sgm = pt.mean(phi_sgm, dim=0)
 c_mean_diff = mean_c_pde - mean_c_sgm
 phi_mean_diff = mean_phi_pde - mean_phi_sgm
-print(c_mean_diff)
 
 # Compute the 95% confidence interval.
 lower_ci_c = pt.quantile(c_sgm, 0.025, dim=0) + c_mean_diff
@@ -41,7 +39,7 @@ ax1.set_ylabel("Concentration [mol/m³]")
 ax1.set_title(r'Elektrolyte Concentration $c(x)$')
 ax1.legend()
 
-ax2.plot(1e6 * x_cells, mean_phi_pde.flatten(), label='Mean', color='blue', linewidth=2)
+ax2.plot(1e6 * x_cells, mean_phi_pde.flatten(), label='Mean PDE', color='blue', linewidth=2)
 ax2.plot(1e6 * x_cells, mean_phi_sgm.flatten(), label='Mean SGM', color='red', linewidth=2)
 ax2.fill_between( 1e6 * x_cells, lower_ci_phi.flatten(), upper_ci_phi.flatten(), color='blue',  alpha=0.2, label='95% Confidence Interval')
 ax2.set_xlabel("x [μm]")

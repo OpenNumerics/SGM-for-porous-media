@@ -25,8 +25,14 @@ score_model = ConvFiLMScore1D(n_grid, n_time_freq=n_embeddings).to(device=device
 n_params = sum(p.numel() for p in score_model.parameters() if p.requires_grad)
 print(f"Total trainable parameters: {n_params:,}")
 
-lr = 1e-4
+lr = 2e-4
+n_epochs = 5_000
 optimizer = optim.Adam(score_model.parameters(), lr=lr)
+scheduler = optim.lr_scheduler.CosineAnnealingLR(
+    optimizer,
+    T_max=n_epochs,
+    eta_min=1e-6
+)
 
 def loss_fn(x0: pt.Tensor,          # (B, 2*n_grid)
             cond: pt.Tensor,        # (B, 3)
@@ -65,7 +71,6 @@ def getGradientNorm():
     grads = pt.cat(grads)
     return pt.norm(grads).item()
 
-n_epochs = 10_000
 counter = []
 losses = []
 grad_norms = []
@@ -73,6 +78,8 @@ test_losses = []
 
 best_loss = float("inf")
 for epoch in range(n_epochs):
+    current_lr = optimizer.param_groups[0]["lr"]
+
     score_model.train()
     for batch_idx, (x0, cond) in enumerate(train_loader):
         optimizer.zero_grad()
@@ -85,7 +92,8 @@ for epoch in range(n_epochs):
         counter.append((1.0*batch_idx)/len(train_loader) + epoch)
         losses.append(loss.item())
         grad_norms.append(grad_norm)
-    print('Train Epoch: {} \tLoss: {:.6f} \t Gradient Norm {:.6f}'.format(  epoch, loss.item(), grad_norm ))
+    scheduler.step()
+    print('Train Epoch: {} \tLoss: {:.6f} \t Gradient Norm {:.6f} \t Learning Rate {:.2E}'.format(  epoch, loss.item(), grad_norm, current_lr ))
 
     score_model.eval()
     with pt.no_grad():
@@ -94,13 +102,13 @@ for epoch in range(n_epochs):
             test_losses.append(test_loss.item())
 
         if test_loss.item() < best_loss:
-            pt.save(score_model.state_dict(), "./models/porous_score_model_convfilm_best_validated.pth")
+            pt.save(score_model.state_dict(), "./models/porous_score_model_convfilm_multiple_best_validated.pth")
             best_loss = test_loss.item()
 
     print('Test Loss {:.6f}'.format( test_loss.item() ))
 
 # Save the final network weights on file    
-pt.save(score_model.state_dict(), "./models/porous_score_model_convfilm_validated.pth")
+pt.save(score_model.state_dict(), "./models/porous_score_model_convfilm_multiple_validated.pth")
 
 # Plot the loss and grad norm
 plt.semilogy(counter, losses, label='Losses', alpha=0.5)

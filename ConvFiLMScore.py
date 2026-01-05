@@ -119,15 +119,21 @@ class ConvFiLMScore1D(nn.Module):
         self.in_proj = nn.Conv1d(2, base_channels, kernel_size=1)
 
         # FiLM modulators: either one per block or one shared
-        film = FiLM(z_dim=z_dim, channels=base_channels, hidden=film_hidden, n_layers=film_layers)
+        film_blocks = [FiLM(z_dim=z_dim, channels=base_channels, hidden=film_hidden, n_layers=film_layers) for _ in range(n_blocks)]
+#        film = FiLM(z_dim=z_dim, channels=base_channels, hidden=film_hidden, n_layers=film_layers)
 
-        # Make n_blocks (default 6) conv-film-conv-film blocks.
+        # Make n_blocks (default 10) conv-film-conv-film blocks.
         self.blocks = nn.ModuleList([
-            ConvBlockFiLM(channels=base_channels, kernel_size=kernel_size, film=film) for _ in range(n_blocks)
+            ConvBlockFiLM(channels=base_channels, kernel_size=kernel_size, film=film_blocks[b]) for b in range(n_blocks)
         ])
 
         # Project back to 2 channels
         self.out_proj = nn.Conv1d(base_channels, 2, kernel_size=1)
+        
+        # z -> (gain_c, gain_phi, bias_c, bias_phi)
+        self.out_affine = nn.Linear(z_dim, 4)
+        nn.init.zeros_(self.out_affine.weight)
+        nn.init.zeros_(self.out_affine.bias)
 
     def forward(self, x_flat: pt.Tensor, t: pt.Tensor, cond: pt.Tensor) -> pt.Tensor:
         """
@@ -153,5 +159,12 @@ class ConvFiLMScore1D(nn.Module):
         for blk in self.blocks:
             h = blk(h, z)
         out = self.out_proj(h)  # (B,2,N)
+
+        # apply z-dependent affine on the *2 channels*
+        gb = self.out_affine(z)           # (B,4)
+        gain_off, bias = gb[:, :2], gb[:, 2:]   # each (B,2)
+
+        gain = 1.0 + gain_off             # start near 1
+        out = out * gain[:, :, None] + bias[:, :, None]
 
         return out.view(B, 2 * N)
