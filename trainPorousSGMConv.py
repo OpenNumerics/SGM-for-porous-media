@@ -12,7 +12,7 @@ dtype = pt.float32
 device = pt.device("mps")
 
 # Load the full dataset
-B = 512
+B = 1024
 train_dataset = PorousDataset(pt.device("cpu"), dtype)
 train_loader = DataLoader(train_dataset, B, shuffle=True)
 test_dataset = PorousDataset(pt.device("cpu"), dtype, is_test=True)
@@ -43,13 +43,14 @@ def loss_fn(x0: pt.Tensor,          # (B, 2*n_grid)
     x0 = x0.to(device=device)
     cond = cond.to(device=device)
 
-    # Sample t uniformly
+    # Sample t quadratically
     B_ = x0.shape[0]
-    t = pt.rand((B_,), device=device, dtype=dtype)
+    tmin = 1e-4
+    t = tmin + (1 - tmin) * pt.rand((B_,), device=device, dtype=dtype)**2
 
     # Forward diffusion
     mt = mean_factor_tensor(t)[:,None]
-    vt = var_tensor(t)[:,None].clamp_min(1.e-4)
+    vt = var_tensor(t)[:,None]
     stds = pt.sqrt(vt)
     noise = pt.randn_like(x0)
     xt = x0 * mt + noise * stds
@@ -74,6 +75,7 @@ def getGradientNorm():
 counter = []
 losses = []
 grad_norms = []
+test_counter = []
 test_losses = []
 
 best_loss = float("inf")
@@ -99,6 +101,7 @@ for epoch in range(n_epochs):
     with pt.no_grad():
         for batch_idx, (x0, cond) in enumerate(test_loader):
             test_loss = loss_fn(x0, cond)
+            test_counter.append((1.0*batch_idx)/len(test_loader) + epoch)
             test_losses.append(test_loss.item())
 
         if test_loss.item() < best_loss:
@@ -113,7 +116,7 @@ pt.save(score_model.state_dict(), "./models/porous_score_model_convfilm_multiple
 # Plot the loss and grad norm
 plt.semilogy(counter, losses, label='Losses', alpha=0.5)
 plt.semilogy(counter, grad_norms, label='Gradient Norms', alpha=0.5)
-plt.semilogy(counter, test_losses, label='Test Losses', alpha=0.5)
+plt.semilogy(test_counter, test_losses, label='Test Losses', alpha=0.5)
 plt.xlabel('Epoch')
 plt.legend()
 plt.show()

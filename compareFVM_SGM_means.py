@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from PorousSGMDataset import PorousDataset
 from SDEs import beta
 from ConvFiLMScore import ConvFiLMScore1D
+from timesteppers import sample_sgm_heun
 from solveFVM import getPDEParameters
 from fvm import simulateFVM
 from gp import sample_gp_1d
@@ -56,7 +57,7 @@ def sample_sgm(cond_norm, dt):
     return y
 
 # Sample a good initial (l, U0, F_right)
-n_eps = 250
+n_eps = 500
 l = L / 10.0
 log_l = math.log(l)
 U0 = 0.0
@@ -69,7 +70,7 @@ cond_norm = pt.tensor([[log_l_norm, U0_norm, F_right_norm]], dtype=dtype).repeat
 # Generate the SGM solution
 print('Backward SDE Simulation..')
 dt = 1e-3
-y = sample_sgm(cond_norm, dt)
+y = sample_sgm_heun(score_model, cond_norm, dt, n_grid=n_grid)
 c = dataset.mean_c + y[:,:n_grid] * dataset.std_c
 phi = dataset.mean_phi + y[:,n_grid:] * dataset.std_phi
 

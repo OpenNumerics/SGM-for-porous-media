@@ -40,7 +40,7 @@ class FiLM(nn.Module):
         self.net = nn.Sequential(*layers)
 
         # Optional: init last layer small-ish to start near identity modulation
-        nn.init.zeros_(self.net[-1].weight)
+        nn.init.normal_(self.net[-1].weight, mean=0.0, std=1e-3)
         nn.init.zeros_(self.net[-1].bias)
 
     def forward(self, z: pt.Tensor) -> tuple[pt.Tensor, pt.Tensor]:
@@ -104,7 +104,7 @@ class ConvFiLMScore1D(nn.Module):
         n_time_freq: int = 16,
         base_channels: int = 64,
         n_blocks: int = 10,
-        kernel_size: int = 5,
+        kernel_size: int = 7,
         film_hidden: int = 128,
         film_layers: int = 4,
     ):
@@ -119,12 +119,11 @@ class ConvFiLMScore1D(nn.Module):
         self.in_proj = nn.Conv1d(2, base_channels, kernel_size=1)
 
         # FiLM modulators: either one per block or one shared
-        film_blocks = [FiLM(z_dim=z_dim, channels=base_channels, hidden=film_hidden, n_layers=film_layers) for _ in range(n_blocks)]
-#        film = FiLM(z_dim=z_dim, channels=base_channels, hidden=film_hidden, n_layers=film_layers)
+        self.film_blocks = nn.ModuleList([FiLM(z_dim=z_dim, channels=base_channels, hidden=film_hidden, n_layers=film_layers) for _ in range(n_blocks)])
 
         # Make n_blocks (default 10) conv-film-conv-film blocks.
         self.blocks = nn.ModuleList([
-            ConvBlockFiLM(channels=base_channels, kernel_size=kernel_size, film=film_blocks[b]) for b in range(n_blocks)
+            ConvBlockFiLM(channels=base_channels, kernel_size=kernel_size, film=self.film_blocks[b]) for b in range(n_blocks)
         ])
 
         # Project back to 2 channels
