@@ -54,6 +54,7 @@ def sample_sgm_heun( score_model : ConvFiLMScore1D,
 
         print(f"step {n:5d}/{n_steps}  t={t0[0].item():.6f}  dt={dt_step[0].item():.6f}")
 
+        # Drift at (y, t0)
         beta0 = beta(t0)[:, None]  # (B,1)
         score0 = score_model(y, t0, cond_norm)  # (B, 2*n_grid)
         f0 = 0.5 * beta0 * y + beta0 * score0   # (B, 2*n_grid)
@@ -63,7 +64,7 @@ def sample_sgm_heun( score_model : ConvFiLMScore1D,
         g0 = pt.sqrt(beta0 * dt_step[:, None])
         y_pred = y + f0 * dt_step[:, None] + g0 * z
 
-        # Drift at predicted state (y_pred, t1)
+        # Drift at (y_pred, t1)
         beta1 = beta(t1)[:, None]
         score1 = score_model(y_pred, t1, cond_norm)
         f1 = 0.5 * beta1 * y_pred + beta1 * score1

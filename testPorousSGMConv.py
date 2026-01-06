@@ -3,7 +3,6 @@ import torch as pt
 import matplotlib.pyplot as plt
 
 from PorousSGMDataset import PorousDataset
-from SDEs import beta
 from ConvFiLMScore import ConvFiLMScore1D
 from timesteppers import sample_sgm_heun
 from solveFVM import getPDEParameters
@@ -17,7 +16,7 @@ pt.set_default_device(device)
 pt.set_default_dtype(dtype)
 
 # Load the dataset for normalization
-dataset = PorousDataset(device, dtype)
+dataset = PorousDataset(device, dtype, is_test=True)
 
 # Load the model
 n_grid = 100

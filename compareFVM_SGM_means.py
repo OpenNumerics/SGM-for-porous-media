@@ -3,7 +3,6 @@ import torch as pt
 import matplotlib.pyplot as plt
 
 from PorousSGMDataset import PorousDataset
-from SDEs import beta
 from ConvFiLMScore import ConvFiLMScore1D
 from timesteppers import sample_sgm_heun
 from solveFVM import getPDEParameters
@@ -33,28 +32,6 @@ x_faces = pt.linspace(0.0, L, n_grid+1)
 x_cells = 0.5 * (x_faces[1:] + x_faces[0:-1])
 c0_tensor = c0 * pt.ones_like(x_cells)
 c_right = c0
-
-# Backward simulation of the SDE in normalized space.
-@pt.inference_mode()
-def sample_sgm(cond_norm, dt):
-    B = cond_norm.shape[0]
-    y = pt.randn((B, 2*n_grid))
-
-    n_steps = int(1.0 / dt)
-    for n in range(n_steps):
-        print('t =', n*dt)
-        s = n * dt
-        t = (1.0 - s) * pt.ones((B,))  # network expects "forward time" t
-        t = pt.clamp(t, min=1e-4)
-
-        # Compute the score
-        score = score_model(y, t, cond_norm)
-
-        # Do one backward EM step
-        beta_t = beta(t)[:, None]
-        y = y + dt*(0.5*beta_t*y + beta_t*score) + pt.sqrt(beta_t*dt)*pt.randn_like(y)
-
-    return y
 
 # Sample a good initial (l, U0, F_right)
 n_eps = 500
