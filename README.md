@@ -1,6 +1,4 @@
-# SGM-for-porous-media
-
-## Score-based Generative Modeling for Electric Potential Fields in Porous Battery Media
+# Score-based Generative Modeling for Electric Potential Fields in Porous Battery Media
 
 This repository contains a finished research project on using score-based generative models (SGMs) to model the distribution of electric potential fields in porous battery media. The goal is not to predict a single solution of a PDE, but to learn a generative model over physically plausible solution profiles induced by uncertainty in the porous microstructure.
 
@@ -44,6 +42,64 @@ We use score-based diffusion models to learn the data distribution of solution f
 
 This yields a generative model capable of producing diverse, physically plausible electric potential profiles that match the statistics of the PDE ensemble. A great technical introduction to SGMs can be found on [Jakiw's blog](https://jakiw.com/sgm_intro). I highly recommend checking it out!
 
+## Neural Network Architecture & FiLM Conditioning
+
+The score network is implemented as a convolutional neural network operating directly on discretized potential field $\phi(x)$ and electolyte concentration $c(x)$. At each time $t$, the network takes as input a noisy fields $\phi_t(x)$ and $c_t(x)$ and predicts the score $(\nabla_{\phi} \log p_t(\phi, c), \nabla_{c} \log p_t(\phi, c))$.
+
+A key architectural contribution of this project is the use of Feature-wise Linear Modulation (FiLM) to condition the score network on physical context. To the best of our knowledge, this is the first application of FiLM-style conditioning in the context of score-based generative models for PDE solution fields.
+
+### What Is Conditioned?
+
+The generative model is conditioned on global and low-dimensional physical inputs, such as:
+- boundary conditions,
+- source term parameters,
+- global scalars describing the PDE setup (e.g. load level, reaction strength, normalization factors).
+
+Crucially, the porosity field $\varepsilon(x)$ is not provided explicitly to the network, this would make it too easy. The conditioning therefore reflects partial observability of the physical system, consistent with realistic modeling scenarios.
+
+### Why FiLM?
+
+Naively concatenating physical parameters to the input field (or broadcasting them as extra channels) often leads to weak conditioning, especially in deep convolutional architectures. FiLM provides a more expressive and stable mechanism by modulating intermediate feature maps:
+
+$$
+h_\ell \;\mapsto\; \gamma_\ell(c)\, h_\ell + \beta_\ell(c),
+$$
+
+where:
+- $h_\ell$ are intermediate feature maps at layer $\ell$,
+- $c$ denotes the conditioning variables (boundary conditions, source parameters, etc.),
+- $\gamma_\ell(c)$ and $\beta_\ell(c)$ are learned functions produced by a small conditioning network (MLP).
+
+This allows the conditioning variables to dynamically re-weight and shift internal representations, enabling the same score network to represent different physical regimes without retraining separate models.
+
+### Architecture Overview
+
+At a high level, the model consists of:
+- A convolutional backbone processing the noisy field $(\phi_t(x), c_t(x))$,
+- Time embedding of the diffusion time $t$, injected into the network,
+- A FiLM conditioning network that maps physical parameters $c$ to per-layer modulation coefficients $\{\gamma_\ell, \beta_\ell\}$,
+- FiLM layers applied at multiple depths of the network to modulate intermediate feature maps.
+
+This results in a conditionally modulated diffusion model, where both the noise scale and the physical context shape the learned score field.
+
+
+### Empirical Impact of FiLM Conditioning
+
+Empirically, FiLM conditioning was critical for:
+- achieving stable training across a wide range of physical regimes,
+- preventing mode collapse in conditioned generation,
+- enabling a single model to generalize across different boundary condition configurations,
+- preserving physically meaningful spatial structures in the generated samples.
+
+Without FiLM, the model either failed to properly condition on the physical inputs or required separate models for different regimes, significantly reducing sample efficiency.
+
+### Relation to Physics-Informed Learning
+
+While this project is not “physics-informed” in the sense of enforcing PDE residuals in the loss, the FiLM conditioning provides a structured way of injecting physical context into the generative model. This sits in between:
+- pure data-driven generative modeling of fields, and
+- fully physics-constrained methods such as PINNs or PINOs.
+
+In practice, this combination allows the SGM to learn the geometry of the solution manifold while remaining sensitive to changes in physical setup. The approach also shares some high-level similarities to transformers such as the necessity of time embeddings.
 
 ## Results & Interpretation
 
