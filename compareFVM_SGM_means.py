@@ -10,7 +10,7 @@ from fvm import simulateFVM
 from gp import sample_gp_1d
 
 pt.set_grad_enabled(False)
-device = pt.device("cpu")
+device = pt.device("mps")
 dtype = pt.float32
 pt.set_default_device(device)
 pt.set_default_dtype(dtype)
@@ -22,7 +22,7 @@ dataset = PorousDataset(device, dtype)
 n_grid = 100
 n_embeddings = 16
 score_model = ConvFiLMScore1D(n_grid, n_time_freq=n_embeddings)
-score_model.load_state_dict(pt.load("./models/porous_score_model_unbiased.pth", weights_only=True))
+score_model.load_state_dict(pt.load("./models/porous_score_model_unbiased.pth", weights_only=True, map_location=device))
 score_model.eval()
 
 # Useful model parameters for backward simulation
@@ -50,6 +50,8 @@ dt = 1e-3
 y = sample_sgm_heun(score_model, cond_norm, dt, n_grid=n_grid)
 c = dataset.mean_c + y[:,:n_grid] * dataset.std_c
 phi = dataset.mean_phi + y[:,n_grid:] * dataset.std_phi
+pt.save(pt.stack((c, phi), dim=1) , './models/sgm_realizations_unbiased.pt')
+
 
 # Solve the PDE by generating eps(x) randomly
 print('Solving Many PDEs')
@@ -58,7 +60,10 @@ parameters["U0"] = U0
 x_faces = pt.linspace(0.0, L, n_grid+1)
 x_cells = 0.5 * (x_faces[1:] + x_faces[0:-1])
 eps_min, eps_max = 0.2, 0.5
-eps_values = sample_gp_1d(x_cells, n_eps, l, 0.0, 1.0)
+pt.set_default_device( pt.device("cpu") )
+eps_values = sample_gp_1d(x_cells.to(device="cpu"), n_eps, l, 0.0, 1.0)
+pt.set_default_device( pt.device("mps") )
+eps_values = eps_values.to(device="mps")
 eps_values = eps_min + (eps_max - eps_min) * pt.sigmoid(eps_values)
 
 # Right bc for phi is the ionic current density i_c(L)
@@ -68,39 +73,38 @@ kappa0 = 1.0
 k_eff = kappa0 * eps_values**b
 D_eff = D0 * eps_values**b
 
-# Run the FVM simulator
+# Run the FVM simulator on the CPU
 dt = 0.1
 T = 100.0
 c_pde = pt.zeros(n_eps, pt.numel(x_cells))
 phi_pde = pt.zeros(n_eps, pt.numel(x_cells))
 for eps_idx in range(n_eps):
     print('eps_idx =', eps_idx)
-    c_T, phi_T = simulateFVM(eps_values[:,eps_idx], k_eff[:,eps_idx], D_eff[:,eps_idx], x_cells, c0_tensor, 
-                                T, dt, parameters, phi_s, c_right, F_right)
+    c_T, phi_T = simulateFVM(eps_values[:,eps_idx], k_eff[:,eps_idx], D_eff[:,eps_idx], 
+                             x_cells, c0_tensor, T, dt, parameters, phi_s, c_right, F_right)
     c_pde[eps_idx,:] = c_T
     phi_pde[eps_idx,:] = phi_T
+pt.save(pt.stack((c_pde, phi_pde), dim=1) , './models/pde_realizations.pt')
 
 # Average and compare
 mean_c_pde = pt.mean(c_pde, dim=0)
 mean_phi_pde = pt.mean(phi_pde, dim=0)
 mean_c_sgm = pt.mean(c, dim=0)
 mean_phi_sgm = pt.mean(phi, dim=0)
-pt.save(pt.stack((c_pde, phi_pde), dim=1) , './models/pde_realization_unbiased.pt')
-pt.save(pt.stack((c, phi), dim=1) , './models/sgm_realizations_unbiased.pt')
 
 # Plot both on separate axis
 fig, ax1 = plt.subplots(figsize=(9,5))
 ax2 = ax1.twinx()
 
 # concentration (left axis)
-ax1.plot(1e6 * x_cells, mean_c_pde,  label="PDE Mean c(x)", color="red", linewidth=2)
-ax1.plot(1e6 * x_cells, mean_c_sgm,  "--", label="SGM Mean c(x)", color="red", linewidth=2)
+ax1.plot(1e6 * x_cells.cpu().numpy(), mean_c_pde.cpu().numpy(),  label="PDE Mean c(x)", color="red", linewidth=2)
+ax1.plot(1e6 * x_cells.cpu().numpy(), mean_c_sgm.cpu().numpy(),  "--", label="SGM Mean c(x)", color="red", linewidth=2)
 ax1.set_xlabel("x [μm]")
 ax1.set_ylabel("Concentration c [mol/m³]")
 
 # potential (right axis)
-ax2.plot(1e6 * x_cells, mean_phi_pde, label="PDE Mean φ(x)", color="blue", linewidth=2)
-ax2.plot(1e6 * x_cells, mean_phi_sgm, "--", label="SGM Mean φ(x)", color="blue", linewidth=2)
+ax2.plot(1e6 * x_cells.cpu().numpy(), mean_phi_pde.cpu().numpy(), label="PDE Mean φ(x)", color="blue", linewidth=2)
+ax2.plot(1e6 * x_cells.cpu().numpy(), mean_phi_sgm.cpu().numpy(), "--", label="SGM Mean φ(x)", color="blue", linewidth=2)
 ax2.set_ylabel("Electrolyte potential φ [V]")
 
 # single combined legend
