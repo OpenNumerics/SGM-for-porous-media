@@ -22,7 +22,7 @@ dataset = PorousDataset(device, dtype)
 n_grid = 100
 n_embeddings = 16
 score_model = ConvFiLMScore1D(n_grid, n_time_freq=n_embeddings)
-score_model.load_state_dict(pt.load("./models/porous_score_model_convfilm_multiple_best_validated.pth", weights_only=True))
+score_model.load_state_dict(pt.load("./models/porous_score_model_unbiased.pth", weights_only=True))
 score_model.eval()
 
 # Useful model parameters for backward simulation
@@ -85,8 +85,8 @@ mean_c_pde = pt.mean(c_pde, dim=0)
 mean_phi_pde = pt.mean(phi_pde, dim=0)
 mean_c_sgm = pt.mean(c, dim=0)
 mean_phi_sgm = pt.mean(phi, dim=0)
-pt.save(pt.stack((c_pde, phi_pde), dim=1) , './models/pde_realization_multiples.pt')
-pt.save(pt.stack((c, phi), dim=1) , './models/sgm_realizations_multiple.pt')
+pt.save(pt.stack((c_pde, phi_pde), dim=1) , './models/pde_realization_unbiased.pt')
+pt.save(pt.stack((c, phi), dim=1) , './models/sgm_realizations_unbiased.pt')
 
 # Plot both on separate axis
 fig, ax1 = plt.subplots(figsize=(9,5))

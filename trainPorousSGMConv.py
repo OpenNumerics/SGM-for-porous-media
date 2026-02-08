@@ -105,13 +105,13 @@ for epoch in range(n_epochs):
             test_losses.append(test_loss.item())
 
         if test_loss.item() < best_loss:
-            pt.save(score_model.state_dict(), "./models/porous_score_model_convfilm_multiple_best_validated.pth")
+            pt.save(score_model.state_dict(), "./models/porous_score_model_unbiased.pth")
             best_loss = test_loss.item()
 
     print('Test Loss {:.6f}'.format( test_loss.item() ))
 
 # Save the final network weights on file    
-pt.save(score_model.state_dict(), "./models/porous_score_model_convfilm_multiple_validated.pth")
+pt.save(score_model.state_dict(), "./models/porous_score_model_unbiased.pth")
 
 # Plot the loss and grad norm
 plt.semilogy(counter, losses, label='Losses', alpha=0.5)

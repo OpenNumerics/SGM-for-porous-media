@@ -22,7 +22,7 @@ dataset = PorousDataset(device, dtype, is_test=True)
 n_grid = 100
 n_embeddings = 16
 score_model = ConvFiLMScore1D(n_grid, n_time_freq=n_embeddings)
-score_model.load_state_dict(pt.load("./models/porous_score_model_convfilm_multiple_best_validated.pth", weights_only=True))
+score_model.load_state_dict(pt.load("./models/porous_score_model_unbiased.pth", weights_only=True))
 score_model.eval()
 
 # Useful model parameters for backward simulation
