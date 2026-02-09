@@ -50,7 +50,7 @@ dt = 1e-3
 y = sample_sgm_heun(score_model, cond_norm, dt, n_grid=n_grid)
 c = dataset.mean_c + y[:,:n_grid] * dataset.std_c
 phi = dataset.mean_phi + y[:,n_grid:] * dataset.std_phi
-pt.save(pt.stack((c, phi), dim=1) , './models/sgm_realizations_unbiased.pt')
+pt.save(pt.stack((c, phi), dim=1) , './models/sgm_realizations.pt')
 
 
 # Solve the PDE by generating eps(x) randomly

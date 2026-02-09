@@ -12,7 +12,7 @@ class PorousDataset (Dataset):
         else:
             app = ""
 
-        mask = pt.load('./data/gp_success_multieps' + app + '.pt', map_location=device, weights_only=True).to(dtype=pt.bool)
+        mask = pt.load('./data/gp_multieps' + app + '.pt', map_location=device, weights_only=True).to(dtype=pt.bool)
         print('Number of Good Data Points:', pt.sum(mask).item())
 
         parameters = pt.load('./data/parameters_multieps' + app + '.pt', map_location=device, weights_only=True)[mask,:].to(dtype=dtype)

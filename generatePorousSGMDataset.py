@@ -122,7 +122,7 @@ if __name__ == '__main__':
 
     # Store the data
     parameters = pt.cat((l_values[:,None], U0_values[:,None], F_right_values[:,None]), dim=1)
-    pt.save(pt.Tensor(gp_success), './data/gp_success_multieps_test.pt')
-    pt.save(parameters.repeat_interleave(n_eps, dim=0), './data/parameters_multieps_test.pt')
-    pt.save(c_data, './data/c_data_multieps_test.pt')
-    pt.save(phi_data, './data/phi_data_multieps_test.pt')
+    pt.save(pt.Tensor(gp_success), './data/gp_multieps.pt')
+    pt.save(parameters.repeat_interleave(n_eps, dim=0), './data/parameters_multieps.pt')
+    pt.save(c_data, './data/c_data_multieps.pt')
+    pt.save(phi_data, './data/phi_data_multieps.pt')
