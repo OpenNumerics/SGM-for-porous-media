@@ -61,7 +61,7 @@ without ever seeing $\varepsilon(x)$ explicitly. Here, $\ell$ is the correlation
 
 
 ## Repository Structure
-
+```
 ├── data/					
 │   c_data_multieps.pt      		  # Raw electrolyte concentration solution fields
 |	phi_data_multieps.pt    		  # Raw electric potential solution fields
@@ -93,6 +93,7 @@ without ever seeing $\varepsilon(x)$ explicitly. Here, $\ell$ is the correlation
 ├── plotSGMCI.py					  # Same as `compareFVM_SGM_means.py` but without the solution-generation step.
 │
 └── README.md
+```
 
 ## How to run
 1. Generate the data
