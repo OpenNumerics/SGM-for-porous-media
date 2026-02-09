@@ -1,121 +1,123 @@
-# Score-based Generative Modeling for Electric Potential Fields in Porous Battery Media
+# Generative AI for Computational Science by Example
 
-This repository contains a finished research project on using score-based generative models (SGMs) to model the distribution of electric potential fields in porous battery media. The goal is not to predict a single solution of a PDE, but to learn a generative model over physically plausible solution profiles induced by uncertainty in the porous microstructure.
+## Score-Based Generative Models for Uncertain PDE Solutions
 
-**Main result**:
-The model learns the variance and spatial uncertainty structure of the electric potential fields very accurately. The mean of the generated fields, however, exhibits a systematic bias. This bias is not a failure of the generative model, but a consequence of non-identifiability in the porosity field: different porous microstructures can produce nearly indistinguishable potential profiles.
+This repository explores how score-based generative models (SGMs), the mathematical backbone of modern diffusion models, can be used as practical tools in computational science. Instead of learning a single deterministic surrogate for a PDE, we learn a distribution over physically plausible solution fields induced by latent micro-scale uncertainty.
 
+The concrete example studied here comes from battery modeling: we consider coupled PDEs for electrolyte concentration $c(x)$ and electric potential $\phi(x)$ in a porous electrode, where the microscopic porosity field is unknown and treated as a latent random field. This induces a nontrivial distribution over macroscopic solution profiles, even under fixed operating conditions. The SGM learns this distribution and allows us to sample new physically plausible solution fields directly.
 
-## Background & Physical Model
+The core idea: Learn distributions of PDE solutions, not point predictions.
 
-In porous electrochemical media (e.g. battery electrodes or electrolytes), the electric potential \phi(x) satisfies a quasi-static conservation law
+**What This Repository Demonstrates**
+- Training a conditional score-based generative model on PDE solution fields.
+- Using diffusion / SDE-based generative models for scientific simulations.
+- How uncertainty in the latent porous microstructure induces a distribution over macroscopic states.
+- Conditioining generative models on operating parameters (e.g., voltage, current flux, correlation length).
+- Evaluating generative models in science via distributional statistics (mean, variance, confidence intervals), not pointwise errors.
 
-$$
-\nabla \cdot \big( \varepsilon(x)\, \nabla \phi(x) \big) = f(x),
-$$
+This project is not about replacing PDE solvers. They have known almost 100 years of continuous improvement and are simply unbeatable. This project is about learning fast generative models of physically admissible solution distributions that can be embedded into the design loop (e.g. UQ, Bayesian inversion, design-space exploration).
 
-with suitable boundary conditions. Here:
-- $\phi(x)$ is the electric potential,
-- $\varepsilon(x)$ is an effective transport coefficient induced by porosity and microstructure (e.g. accounting for tortuosity and reduced conductive cross-section),
-- $f(x)$ represents volumetric source terms (e.g. reaction currents).
+## Why This Matters
 
-The key difficulty is that $\varepsilon(x)$ is spatially heterogeneous and uncertain. In realistic settings it is not known exactly, but only through a statistical model reflecting microstructural variability. This uncertainty induces a distribution over solution fields $\phi(x)$, rather than a single deterministic outcome.
+In many scientific problems:
+- The governing equations are deterministic
+- The inputs are uncertain or partially observed
+- The output is therefore a distribution, not a single field
 
+SGMs provide a scalable way to learn such distributions directly from data, enabling:
+- Fast sampling for uncertainty quantification
+- Stochastic surrogates for expensive solvers
+- Fast exploration of the design space
 
-## What Is Being Learned?
+This repo is meant as a worked example of how generative AI can be used as a numerical tool in computational science—not as a replacement for physics, but as an extension of it.
 
-Rather than learning a surrogate that maps inputs to a single solution, this project learns a *conditional* distribution over potential fields:
+## Problem Setting (Short Version)
 
-$$
-p(\phi \mid f, \text{BCs}),
-$$
+We study a 1D porous battery electrode model with coupled PDEs for:
+- Electrolyte concentration $c(x)$
+- Electrolyte potential $\phi(x)$
 
-induced by randomness in the porosity field $\varepsilon(x)$. The model is trained on ensembles of PDE solutions generated from randomly sampled porosity fields and learns to generate new, physically plausible solution profiles. Importantly, the generative model does not observe $\varepsilon(x)$ directly. It only sees the resulting potential fields. As a result, it implicitly marginalizes over all porosity fields that could have produced a given $\phi(x)$.
+The equations are deterministic given:
+- Macroscopic operating conditions $(U_0, F_{\text{right}})$
+- The unknown realization of the microscopic porosity field $\varepsilon(x)$
 
-
-## Method: Score-Based Generative Modeling
-
-We use score-based diffusion models to learn the data distribution of solution fields. In short:
-	1.	Generate training data by solving the porous-media PDE for many random realizations of \varepsilon(x).
-	2.	Train a neural network to approximate the score (gradient of the log-density) of noisy solution fields.
-	3.	Sample new potential fields by integrating the reverse-time SDE (or probability flow ODE).
-
-This yields a generative model capable of producing diverse, physically plausible electric potential profiles that match the statistics of the PDE ensemble. A great technical introduction to SGMs can be found on [Jakiw's blog](https://jakiw.com/sgm_intro). I highly recommend checking it out!
-
-## Neural Network Architecture & FiLM Conditioning
-
-The score network is implemented as a convolutional neural network operating directly on discretized potential field $\phi(x)$ and electolyte concentration $c(x)$. At each time $t$, the network takes as input a noisy fields $\phi_t(x)$ and $c_t(x)$ and predicts the score $(\nabla_{\phi} \log p_t(\phi, c), \nabla_{c} \log p_t(\phi, c))$.
-
-A key architectural contribution of this project is the use of Feature-wise Linear Modulation (FiLM) to condition the score network on physical context. To the best of our knowledge, this is the first application of FiLM-style conditioning in the context of score-based generative models for PDE solution fields.
-
-### What Is Conditioned?
-
-The generative model is conditioned on global and low-dimensional physical inputs, such as:
-- boundary conditions,
-- source term parameters,
-- global scalars describing the PDE setup (e.g. load level, reaction strength, normalization factors).
-
-Crucially, the porosity field $\varepsilon(x)$ is not provided explicitly to the network, this would make it too easy. The conditioning therefore reflects partial observability of the physical system, consistent with realistic modeling scenarios.
-
-### Why FiLM?
-
-Naively concatenating physical parameters to the input field (or broadcasting them as extra channels) often leads to weak conditioning, especially in deep convolutional architectures. FiLM provides a more expressive and stable mechanism by modulating intermediate feature maps:
+In practice, $\varepsilon(x)$ is unknown and treated as a latent random field (sampled from a Gaussian process). This induces a distribution over steady-state solution fields $(c(x), \phi(x))$. The SGM is trained to learn this conditional distribution:
 
 $$
-h_\ell \;\mapsto\; \gamma_\ell(c)\, h_\ell + \beta_\ell(c),
+p\big(c(x), \phi(x) \mid U_0, \ell, F_{\text{right}}\big)
 $$
 
-where:
-- $h_\ell$ are intermediate feature maps at layer $\ell$,
-- $c$ denotes the conditioning variables (boundary conditions, source parameters, etc.),
-- $\gamma_\ell(c)$ and $\beta_\ell(c)$ are learned functions produced by a small conditioning network (MLP).
-
-This allows the conditioning variables to dynamically re-weight and shift internal representations, enabling the same score network to represent different physical regimes without retraining separate models.
-
-### Architecture Overview
-
-At a high level, the model consists of:
-- A convolutional backbone processing the noisy field $(\phi_t(x), c_t(x))$,
-- Time embedding of the diffusion time $t$, injected into the network,
-- A FiLM conditioning network that maps physical parameters $c$ to per-layer modulation coefficients $\{\gamma_\ell, \beta_\ell\}$,
-- FiLM layers applied at multiple depths of the network to modulate intermediate feature maps.
-
-This results in a conditionally modulated diffusion model, where both the noise scale and the physical context shape the learned score field.
+without ever seeing $\varepsilon(x)$ explicitly. Here, $\ell$ is the correlation length of the Gaussian process and is also a conditioning parameter.
 
 
-### Empirical Impact of FiLM Conditioning
-
-Empirically, FiLM conditioning was critical for:
-- achieving stable training across a wide range of physical regimes,
-- preventing mode collapse in conditioned generation,
-- enabling a single model to generalize across different boundary condition configurations,
-- preserving physically meaningful spatial structures in the generated samples.
-
-Without FiLM, the model either failed to properly condition on the physical inputs or required separate models for different regimes, significantly reducing sample efficiency.
-
-### Relation to Physics-Informed Learning
-
-While this project is not “physics-informed” in the sense of enforcing PDE residuals in the loss, the FiLM conditioning provides a structured way of injecting physical context into the generative model. This sits in between:
-- pure data-driven generative modeling of fields, and
-- fully physics-constrained methods such as PINNs or PINOs.
-
-In practice, this combination allows the SGM to learn the geometry of the solution manifold while remaining sensitive to changes in physical setup. The approach also shares some high-level similarities to transformers such as the necessity of time embeddings.
-
-## Results & Interpretation
-
-What works well
-- The model accurately captures the variance of the solution fields.
-- Spatial correlation structure and uncertainty patterns match the ground-truth PDE ensemble.
-- Samples are smooth, physically consistent, and lie on the correct solution manifold.
-
-What is fundamentally limited
-- The mean field is biased compared to the true ensemble mean.
-- I think this bias is caused by non-identifiability of the porosity field $\varepsilon(x)$: multiple different porosity configurations can lead to nearly identical potential profiles.
-- As a result, the conditional mean of $\phi(x)$ is not uniquely determined by the observations available to the model.
-
-## Takeaway
-
-The model correctly learns how uncertain the solution is and where that uncertainty lives, but the mean solution is not uniquely identifiable without conditioning on additional information about the porous microstructure. I believe this is a structural limitation of the inverse problem, not a modeling failure of diffusion models.
+## Method Overview
+- Generate training data by sampling porosity fields $\varepsilon(x) \sim \text{GP}(l)$
+- Solve the coupled PDEs using a finite-volume method (`fvm.py`)
+- Discretize solution fields onto a fixed spatial grid
+- Train a conditional score network using diffusion / SDE-based score matching
+- Use the learned reverse-time SDE to sample new solution fields
+- ompare PDE and SGM results in distribution (mean, variance, percentiles)
 
 
-## Repository Structure (indicative)
+
+## Repository Structure
+
+├── data/					
+│   c_data_multieps.pt      		  # Raw electrolyte concentration solution fields
+|	phi_data_multieps.pt    		  # Raw electric potential solution fields
+|	normalization.pt				  # Normalized versions of both tensors (as NN input)
+|	parameters_multieps.pt			  # Values of the associated conditioning parameters
+|
+├── models/
+|	porous_score_model.pth			  # The trained SGM score model
+|
+├── figures/                		  # Figures used in the writeups
+│
+├── fvm.py                  		  # Finite-volume solver for the coupled battery PDEs
+├── plotFVM.py						  # Plotting routine for the FVM solution
+├── solveFVM.py						  # Sample script to initialize and call the FVM solver
+├── generatePorousSGMDataset.py       # Script to sample porosity fields and generate PDE solutions
+├── PDEParameters.py				  # Values of the global PDE parameters
+├── thomas.py						  # Implementation of the Thomas algorithm for tridiagonal systems used in FVM.
+│
+├── forwardDistribution.py			  # Implements the forward Ornstein-Uhlenbeck process. Used for determining the optimal beta_max.
+├── SDEs.py							  # Implement the forward and backward SDEs used for sampling. Also defines the alpha(t) and beta(t) schedule.
+├── timesteppers.py					  # Euler-Maruyama and Heun timesteppers used to generate plausable solutions
+│
+├── generatePorousSGMDataset.py		  # Generate the training data in data/. Parallelized but takes an hour to run.
+├── PorousSGMDataset.py				  # Subclass of PyTorch's `Dataset` used for the training and validation datasets.
+├── ConvFiLMScore.py				  # FiLM-Convolutional Network definition.
+├── trainPorousSGMConv.py			  # Main SGM training script with the Adam optimizer. Takes 10 hours to run on my Macbook Neural Engine.
+├── testPorousSGMConv.py			  # Simple testing script that generates one plausable SGM solution and compares it to another PDE solution.
+├── compareFVM_SGM_means.py			  # Main testing script that runs 1000 SGM and PDE solutions (see `timesteppers.py` and `fvm.py`) and makes the main 
+├── plotSGMCI.py					  # Same as `compareFVM_SGM_means.py` but without the solution-generation step.
+│
+└── README.md
+
+## How to run
+1. Generate the data
+> ```
+> python generatePorousSGMDataset.py
+> ```
+2. Train the SGM
+> ```
+> python trainPorousSGMConv.py
+> ```
+3. Sample new solution fields and compare statistics
+> ```
+> python compareFVM_SGM_means.py
+> ```
+
+## Results
+
+The SGM reproduces:
+- The mean solution profiles of the PDE ensemble
+- The variance and confidence intervals
+- The correct behavior near Dirichlet and Neumann boundaries (very hard!)
+
+Crucially, the model captures uncertainty induced by latent porosity fields—even though porosity is never explicitly given to the network. It *learns* the underlying distribution.
+
+
+## Citation / Attribution
+
+If you use this code or ideas in academic work, a citation or link back to this repository is appreciated. Also see LICENSE.

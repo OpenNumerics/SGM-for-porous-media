@@ -4,19 +4,7 @@ pt.set_default_dtype(pt.float64)
 from fvm import simulateFVM
 from plotFVM import plot_solution
 from gp import sample_gp_1d
-
-def getPDEParameters():
-    t_plus = 0.4
-
-    # Build a Gaussian process for eps(x)
-    a_s = 5e5
-    k_rn = 0.1
-    G = 1.e3
-    phi_s = lambda x: -G*x
-
-    # Run the FVM simulator
-    parameters = {"t_plus" : t_plus, "a_s" : a_s, "k_rn" : k_rn}
-    return parameters, phi_s
+from PDEParameters import getPDEParameters
 
 def testFVM():
     L = 1.e-4
